@@ -1,0 +1,440 @@
+---
+title: "Homework 2"
+author: "Tony Lian"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+options(scipen = 10)
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+library(tidyverse)
+library(kableExtra)
+library(moments)
+library(lubridate)
+library(gridExtra)
+
+# Load data
+# Annual returns
+ret_ann = read.table("data/returns_annual.txt", skip = 5, header = TRUE) %>%
+  rename(date = X.date) %>% data.table()
+
+
+# Monthly returns
+ret_mon = read.table("data/returns_monthly.txt", skip = 4, header = TRUE) %>% 
+  data.table()
+ret_mon$date = ymd(ret_mon$X.date)
+
+# Daily returns
+ret_daily = read.table("data/returns_daily.txt", skip = 5, header = TRUE) %>%
+  data.table()
+ret_daily$date = ymd(ret_daily$X.date)
+
+```
+
+
+## 1. Recompute the answer to HW1-6 by simulation
+
+```{r}
+
+rets = list(ret_ann, ret_mon, ret_daily)
+periods = c("annual", "monthly", "daily")
+
+ret_stats = as.data.frame(matrix(NA, nrow = 3, ncol = 5))
+
+for (i in 1:3) {
+  ret = rets[[i]]
+  
+  ret_stats[i, 1] = periods[i]
+  
+  ret_stats[i, 2] = mean(ret$mktret)
+  ret_stats[i, 3] = sd(ret$mktret)
+  
+  ret_stats[i, 4] = mean(ret$bondret)
+  ret_stats[i, 5] = sd(ret$bondret)
+}
+
+names(ret_stats) = c("period", "mkt_mean", "mkt_sd", "bond_mean", "bond_sd")
+ret_stats %>% kable() %>% kable_styling()
+
+```
+```{r}
+# Simulations
+n = 10000
+
+stock_sim = as.data.frame(matrix(NA, nrow = n, ncol = 3))
+names(stock_sim) = periods
+
+bond_sim = as.data.frame(matrix(NA, nrow = n, ncol = 3))
+names(bond_sim) = periods
+
+for (i in 1:3) {
+  # Stock sim
+  stock_sim[, i] = rnorm(n, ret_stats[i, 2], ret_stats[i, 3])
+  bond_sim[, i] = rnorm(n, ret_stats[i, 4], ret_stats[i, 5])
+  
+  p1 = stock_sim %>% ggplot(aes_string(x = names(stock_sim)[i])) +
+    geom_histogram(aes(y = ..density..), bins = 50, fill = 'darkred') +
+    stat_function(fun = dnorm, args = list(mean = ret_stats[i, 2],
+                                           sd = ret_stats[i, 3]),
+                  size = 1.5) + 
+    ggtitle(paste0("Stock simulation: ", periods[i]))
+  
+  p2 = bond_sim %>% ggplot(aes_string(x = names(bond_sim)[i])) + 
+    geom_histogram(aes(y = ..density..), bins = 50, fill = 'darkblue') + 
+    stat_function(fun = dnorm, args = list(mean = ret_stats[i, 4], 
+                                           sd = ret_stats[i, 5]),
+                  size = 1.5) + 
+    ggtitle(paste0("Bond simulation: ", periods[i]))
+  
+  grid.arrange(p1, p2, ncol = 2)        
+  
+}
+
+
+
+data.frame(stock_sim, "", bond_sim) %>% head() %>% kable() %>% kable_styling()
+
+
+```
+
+We get the same answers as in Assignment 1 since we are calculating shortfall based on the same assumed normal distribution.
+
+## 2. Recompute shortfall using the resampling method
+
+```{r}
+# Resample from empirical data
+stock_samp = as.data.frame(matrix(NA, nrow = n, ncol = 3))
+names(stock_samp) = periods
+
+bond_samp = as.data.frame(matrix(NA, nrow = n, ncol = 3))
+names(bond_samp) = periods
+
+for (i in 1:3) {
+  stock_samp[, i] = sample(rets[[i]]$mktret, n, replace = TRUE)
+  bond_samp[, i] = sample(rets[[i]]$bondret, n, replace = TRUE)
+  
+  p1 = stock_samp %>% ggplot(aes_string(x = names(stock_samp)[i])) +
+    geom_histogram(aes(y = ..density..), bins = 50, fill = 'pink') +
+    stat_function(fun = dnorm, args = list(mean = ret_stats[i, 2],
+                                           sd = ret_stats[i, 3]),
+                  size = 1.5) + 
+    ggtitle(paste0("Stock resampling: ", periods[i]))
+  
+  p2 = bond_samp %>% ggplot(aes_string(x = names(bond_samp)[i])) +
+    geom_histogram(aes(y = ..density..), bins = 50, fill = 'lightblue') +
+    stat_function(fun = dnorm, args = list(mean = ret_stats[i, 4],
+                                           sd = ret_stats[i, 5]),
+                  size = 1.5) + 
+    ggtitle(paste0("Bond resampling: ", periods[i]))
+  
+  grid.arrange(p1, p2, ncol = 2)
+  
+}
+
+```
+
+
+```{r}
+# Function to calculate shortfall 
+shortfall = function(x, lvl) {
+  mean(x < lvl)
+}
+
+# Function to calculate outperformance
+outperf = function(x, lvl) {
+  mean(x > lvl)
+}
+
+# Calculate Shorfalls
+lvls = seq(-.2, .2, .1)
+
+
+t = data.frame(levels = lvls)
+
+for (i in 1:3) {
+  
+  # Stocks
+  t[, paste0("stock_anl_", periods[i])] = t$levels %>% 
+    sapply(function(x) {pnorm(x, ret_stats[i, 2], ret_stats[i, 3])})
+  
+  t[, paste0("stock_sim_", periods[i])] = t$levels %>%
+    sapply(function(x) {shortfall(stock_sim[, i], x)})
+  
+  t[, paste0("stock_samp_", periods[i])] = t$levels %>%
+    sapply(function(x) {shortfall(stock_samp[, i], x)})
+  
+  
+  # Bonds
+  t[, paste0("bond_anl_", periods[i])] = t$levels %>% 
+    sapply(function(x) {pnorm(x, ret_stats[i, 4], ret_stats[i, 5])})
+  
+  t[, paste0("bond_sim_", periods[i])] = t$levels %>%
+    sapply(function(x) {shortfall(bond_sim[, i], x)}) 
+  
+  t[, paste0("bond_samp_", periods[i])] = t$levels %>%
+    sapply(function(x) {shortfall(bond_samp[, i], x)})
+  
+  # Plots
+  p1 = t %>% ggplot(aes_string(x = 'levels')) + 
+    geom_line(aes_string(y = paste0('stock_sim_', periods[i])), 
+              size = 1, color = 'darkred') + 
+    geom_line(aes_string(y = paste0('stock_samp_', periods[i])),
+              size = 1, color = 'pink') +
+    ggtitle(paste0("Stock shortfalls: ", periods[i]))
+  
+  
+  p2 = t %>% ggplot(aes_string(x = 'levels')) + 
+    geom_line(aes_string(y = paste0('bond_sim_', periods[i])), 
+              size = 1, color = 'darkblue') + 
+    geom_line(aes_string(y = paste0('bond_samp_', periods[i])),
+              size = 1, color = 'lightblue') +
+    ggtitle(paste0("Bond shortfalls: ", periods[i]))
+  
+  grid.arrange(p1, p2, ncol = 2)
+  
+}
+
+
+t %>% kable() %>% kable_styling()
+
+```
+From empirical observations, we see that using the resampling method, monthly and daily return shortfalls are very comparable, but annual shortfalls differ. Empirical sampling yields much higher shortfall probabilities for negative return levels for stocks and the opposite for bonds. It seems to match our calculations that stocks exhibit negative skewness and bonds exhibit positive skewness.
+
+## 3, 4, 5. Shortfalls - Analytical, Simulation, Resampling
+
+```{r}
+# Transform to lognormal
+
+ret_stats_log = as.data.frame(matrix(NA, nrow = 3, ncol = 5))
+
+for (i in 1:3) {
+  ret_stats_log[i, 1] = periods[i]
+  
+  ret_stats_log[i, 2] = mean(log(1 + rets[[i]]$mktret))
+  ret_stats_log[i, 3] = sd(log(1 + rets[[i]]$mktret))
+  
+  ret_stats_log[i, 4] = mean(log(1 + rets[[i]]$bondret))
+  ret_stats_log[i, 5] = sd(log(1 + rets[[i]]$bondret))
+}
+
+names(ret_stats_log) = c("period", "mkt_mean_log", "mkt_sd_log", "bond_mean_log", "bond_sd_log")
+ret_stats_log %>% kable() %>% kable_styling()
+
+```
+```{r}
+# Simulation and Resampling for 5 periods
+t = 5
+
+stock_sim5 = as.data.frame(matrix(NA, nrow = n, ncol = 3))
+names(stock_sim5) = periods
+
+bond_sim5 = as.data.frame(matrix(NA, nrow = n, ncol = 3))
+names(bond_sim5) = periods
+
+stock_samp5 = as.data.frame(matrix(NA, nrow = n, ncol = 3))
+names(stock_samp5) = periods
+
+bond_samp5 = as.data.frame(matrix(NA, nrow = n, ncol = 3))
+names(bond_samp5) = periods
+
+for (i in 1:3) {
+  stock_sim_df = as.data.frame(matrix(NA, nrow = n, ncol = t))
+  stock_samp_df = as.data.frame(matrix(NA, nrow = n, ncol = t))
+  
+  bond_sim_df = as.data.frame(matrix(NA, nrow = n, ncol = t))
+  bond_samp_df = as.data.frame(matrix(NA, nrow = n, ncol = t))
+  
+  for (j in 1:t) {
+    stock_sim_df[, j] = rnorm(n, ret_stats$mkt_mean[i], ret_stats$mkt_sd[i]) + 1
+    stock_samp_df[, j] = sample(rets[[i]]$mktret, n, replace = TRUE) + 1
+    
+    bond_sim_df[, j] = rnorm(n, ret_stats$bond_mean[i], ret_stats$bond_sd[i]) + 1
+    bond_samp_df[, j] = sample(log(rets[[i]]$bondret + 1), n, replace = TRUE) + 1
+  }
+  
+  stock_sim5[, i] = stock_sim_df %>% Reduce(`*`, .) - 1
+  stock_samp5[, i] = stock_samp_df %>% Reduce(`*`, .) - 1
+  
+  p1 = stock_sim5 %>% ggplot(aes_string(x = names(stock_sim5)[i])) +
+    geom_histogram(aes(y = ..density..), bins = 50, fill = 'darkred') +
+    stat_function(fun = dnorm, args = list(mean = ret_stats[i, 2] * t,
+                                           sd = ret_stats[i, 3] * sqrt(t)),
+                  size = 1.5) + 
+    ggtitle(paste0("Stock simulation: ", periods[i]))
+  
+  p2 = stock_samp5 %>% ggplot(aes_string(x = names(stock_samp5)[i])) +
+    geom_histogram(aes(y = ..density..), bins = 50, fill = 'pink') +
+    stat_function(fun = dnorm, args = list(mean = ret_stats[i, 2] * t,
+                                           sd = ret_stats[i, 3] * sqrt(t)),
+                  size = 1.5) + 
+    ggtitle(paste0("Stock resampling: ", periods[i]))
+  
+  
+  bond_sim5[, i] = bond_sim_df %>% Reduce(`*`, .) - 1
+  bond_samp5[, i] = bond_samp_df %>% Reduce(`*`, .) - 1 
+  
+  p3 = bond_sim5 %>% ggplot(aes_string(x = names(bond_sim5)[i])) +
+    geom_histogram(aes(y = ..density..), bins = 50, fill = 'darkblue') +
+    stat_function(fun = dnorm, args = list(mean = ret_stats[i, 4] * t,
+                                           sd = ret_stats[i, 5] * sqrt(t)),
+                  size = 1.5) + 
+    ggtitle(paste0("Stock simulation: ", periods[i]))
+  
+  p4 = bond_samp5 %>% ggplot(aes_string(x = names(bond_samp5)[i])) +
+    geom_histogram(aes(y = ..density..), bins = 50, fill = 'lightblue') +
+    stat_function(fun = dnorm, args = list(mean = ret_stats[i, 4] * t,
+                                           sd = ret_stats[i, 5] * sqrt(t)),
+                  size = 1.5) + 
+    ggtitle(paste0("Stock resampling: ", periods[i]))
+  
+  grid.arrange(p1, p2, p3, p4, nrow = 1)
+  
+  
+}
+
+```
+
+```{r}
+t = 5
+lvl = 0.2
+
+stock_outperf5 = as.data.frame(matrix(NA, nrow = 3, ncol = 4))
+names(stock_outperf5) = c("stock_outperf5", "analytical", "simulation", "resampling")
+
+bond_outperf5 = as.data.frame(matrix(NA, nrow = 3, ncol = 4))
+names(bond_outperf5) = c("bond_outperf5", "analytical", "simulation", "resampling")
+
+for (i in 1:3) {
+  
+  stock_outperf5[i, 1] = periods[i]
+  bond_outperf5[i, 1] = periods[i]
+  
+  #Analytical
+  stock_outperf5[i, 2] = pnorm(log(1 + lvl), 
+                               ret_stats_log[i, 2] * t, 
+                               ret_stats_log[i, 3] * sqrt(t),
+                               lower.tail = FALSE)
+  
+  bond_outperf5[i, 2] = pnorm(log(1 + lvl),
+                              ret_stats_log[i, 4] * t,
+                              ret_stats_log[i, 5] * sqrt(t),
+                              lower.tail = FALSE)
+  
+  
+  
+  # Simulation
+  stock_outperf5[i, 3] = outperf(stock_sim5[, i], lvl)
+  bond_outperf5[i, 3] = outperf(bond_sim5[, i], lvl)
+  
+  
+  # Resampling
+  stock_outperf5[i, 4] = outperf(stock_samp5[, i], lvl)
+  bond_outperf5[i, 4] = outperf(bond_samp5[, i], lvl)
+  
+  
+}
+
+
+stock_outperf5 %>% kable() %>% kable_styling()
+
+bond_outperf5 %>% kable() %>% kable_styling()
+
+
+```
+
+## 6, 7. Relative Shortfall
+
+```{r}
+# Simulation and Resampling for 30 periods
+t = 30
+
+stock_sim30 = as.data.frame(matrix(NA, nrow = n, ncol = 3))
+names(stock_sim30) = periods
+
+bond_sim30 = as.data.frame(matrix(NA, nrow = n, ncol = 3))
+names(bond_sim30) = periods
+
+stock_samp30 = as.data.frame(matrix(NA, nrow = n, ncol = 3))
+names(stock_samp30) = periods
+
+bond_samp30 = as.data.frame(matrix(NA, nrow = n, ncol = 3))
+names(bond_samp30) = periods
+
+for (i in 1:3) {
+  stock_sim_df = as.data.frame(matrix(NA, nrow = n, ncol = t))
+  stock_samp_df = as.data.frame(matrix(NA, nrow = n, ncol = t))
+  
+  bond_sim_df = as.data.frame(matrix(NA, nrow = n, ncol = t))
+  bond_samp_df = as.data.frame(matrix(NA, nrow = n, ncol = t))
+  
+  for (j in 1:t) {
+    stock_sim_df[, j] = rnorm(n, ret_stats$mkt_mean[i], ret_stats$mkt_sd[i]) + 1
+    stock_samp_df[, j] = sample(rets[[i]]$mktret, n, replace = TRUE) + 1
+    
+    bond_sim_df[, j] = rnorm(n, ret_stats$bond_mean[i], ret_stats$bond_sd[i]) + 1
+    bond_samp_df[, j] = sample(log(rets[[i]]$bondret + 1), n, replace = TRUE) + 1
+  }
+  
+  stock_sim30[, i] = stock_sim_df %>% Reduce(`*`, .) - 1
+  stock_samp30[, i] = stock_samp_df %>% Reduce(`*`, .) - 1
+  
+  bond_sim30[, i] = bond_sim_df %>% Reduce(`*`, .) - 1
+  bond_samp30[, i] = bond_samp_df %>% Reduce(`*`, .) - 1 
+  
+}
+
+rel_sim30 = bond_sim30 - stock_sim30
+rel_samp30 = bond_samp30 - stock_samp30
+
+for (i in 1:3) {
+  p1 = rel_sim30 %>% ggplot(aes_string(x = names(rel_sim30)[i])) +
+    geom_histogram(aes(y = ..density..), bins = 50, fill = 'seagreen2') +
+    ggtitle(paste0("Relative simulation: ", periods[i]))
+  
+  p2 = rel_samp30 %>% ggplot(aes_string(x = names(rel_samp30)[i])) + 
+    geom_histogram(aes(y = ..density..), bins = 50, fill = 'seagreen4') +
+    ggtitle(paste0("Relative resampling: ", periods[i]))
+  
+  grid.arrange(p1, p2, nrow = 1)
+}
+
+```
+
+
+
+```{r}
+# Relative shortfall
+
+rel_shortfall30 = as.data.frame(matrix(NA, nrow = 3, ncol = 4))
+names(rel_shortfall30) = c("Relative shortfall", "analytical", "simulation", "resampling")
+
+
+for (i in 1:3) {
+  
+  rel_shortfall30[i, 1] = periods[i]
+  
+  #Analytical
+  rel_shortfall30[i, 2] = pnorm(0, 
+                                mean(log(1 + rets[[i]]$bondret) - 
+                                       log(1 + rets[[i]]$mktret)) * t, 
+                                sd(log(1 + rets[[i]]$bondret) - 
+                                     log(1 + rets[[i]]$mktret)) * sqrt(t))
+  
+  
+  
+  # Simulation
+  rel_shortfall30[i, 3] = shortfall(bond_sim30[, i] - stock_sim30[, i], 0)
+  
+  # Resampling
+  rel_shortfall30[i, 4] = shortfall(bond_samp30[, i] - stock_samp30[, i], 0)
+  
+  
+}
+
+
+rel_shortfall30 %>% kable() %>% kable_styling()
+
+
+
+```
