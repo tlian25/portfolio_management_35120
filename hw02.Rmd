@@ -438,3 +438,39 @@ rel_shortfall30 %>% kable() %>% kable_styling()
 
 
 ```
+
+
+## Barnstable College
+```{r}
+# Exhibit 1
+r = data.frame(T = 0:100)
+r$rf = 1.06 ^ r$T
+r$mean_r = 1.117 ^ r$T
+r$sig_up2 = r$mean_r * (1 +  2 * .16 * sqrt(r$T))
+r$sig_dn2 = r$mean_r * (1 - 2 * .16 * sqrt(r$T))
+
+
+r %>% ggplot() + 
+  geom_line(aes(x = T, y = mean_r), color = 'black') + 
+  geom_line(aes(x = T, y = rf), color = 'black') + 
+  geom_line(aes(x = T, y = sig_up2), color = "seagreen") + 
+  geom_line(aes(x = T, y = sig_dn2), color = "seagreen") +
+  scale_y_log10()
+
+```
+
+```{r}
+# Exhibit 2
+
+r = data.frame(T = 0:100)
+r$put = sqrt(r$T/300)
+r$shortfall = 1/(r$T + 2)
+
+
+r %>% ggplot() + 
+  geom_line(aes(x = T, y = put), color = "black") +
+  geom_line(aes(x = T, y = shortfall), color = "blue")
+
+
+
+```
