@@ -444,10 +444,14 @@ rel_shortfall30 %>% kable() %>% kable_styling()
 ```{r}
 # Exhibit 1
 r = data.frame(T = 0:100)
-r$rf = 1.06 ^ r$T
-r$mean_r = 1.117 ^ r$T
-r$sig_up2 = r$mean_r * (1 +  2 * .16 * sqrt(r$T))
-r$sig_dn2 = r$mean_r * (1 - 2 * .16 * sqrt(r$T))
+r$rf = exp(0.06 * r$T)
+
+r$mean_r = exp(.117 * r$T)
+#r$sig_up2 = r$mean_r * (1 +  2 * .16 * sqrt(r$T))
+#r$sig_dn2 = r$mean_r * (1 - 2 * .16 * sqrt(r$T))
+r$sig_up2 = exp(.117 * r$T + 2 * sqrt(r$T))
+r$sig_dn2 = exp(.117 * r$T - 2 * sqrt(r$T))
+
 
 
 r %>% ggplot() + 
