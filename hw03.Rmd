@@ -14,7 +14,133 @@ library(moments)
 library(lubridate)
 library(gridExtra)
 
+# Data
+mkt = fread("data/vwmkt_26_19.csv")
+names(mkt) = c("date", "ret", "level")
+mkt$date = as.Date(as.character(mkt$date), "%Y%m%d")
+tb = fread("data/tb_26_19.csv")
+names(tb) = c("date", "ret", "level")
+tb$date = as.Date(as.character(tb$date), "%Y%m%d")
 
+
+```
+
+
+# 1. Relative performance of stocks and T-bills
+## a)
+```{r}
+print(mean(mkt$ret > tb$ret))
+```
+
+## b)
+```{r}
+total_mkt_ret = prod(mkt$ret + 1)
+print(paste("Total MKT return:", total_mkt_ret))
+
+total_tb_ret = prod(tb$ret + 1)
+print(paste("Total TB return:", total_tb_ret))
+```
+
+
+# 2. Perfect Market Timing
+```{r}
+# Perfect timing by taking the max of mkt and tb return each year
+pt = data.table(mkt$date)
+pt$ret = pmax(mkt$ret, tb$ret)
+
+pt_mean = mean(pt$ret)
+pt_sd = sd(pt$ret)
+pt_sr = mean(pt$ret - tb$ret) / sd(pt$ret - tb$ret)
+print("Perfect Timing Strategy")
+print(paste("Total Return:", prod(pt$ret+1)))
+print(paste("Mean:", pt_mean, "SD:", pt_sd, "Sharpe Ratio:", pt_sr))
+
+
+# Market 
+mkt_mean = mean(mkt$ret)
+mkt_sd = sd(mkt$ret)
+mkt_sr = mean(mkt$ret - tb$ret) / sd(mkt$ret - tb$ret)
+print("Market")
+print(paste("Mean:", mkt_mean, "SD:", mkt_sd, "Sharpe Ratio:", mkt_sr))
+```
+
+
+# 3. Benefits of imperfect market timing
+```{r}
+# Simulations
+n = 1000
+fees = 0.02
+pr_right = .6
+pt$ret_max = pmax(mkt$ret, tb$ret)
+pt$ret_min = pmin(mkt$ret, tb$ret)
+
+tb_avg = mean(tb$ret)
+sims = as.data.frame(matrix(NA, nrow = n, ncol = 4))
+names(sims) = c("mean", "sd", "sr", "total")
+
+for (i in 1:n) {
+  max_index = sample(1:nrow(pt), pr_right * nrow(pt))
+  
+  # Baseline is the min return
+  rets = pt$ret_min
+  # Set sampled index to max return
+  rets[max_index] = pt$ret_max[max_index]
+  # Subtract fees
+  rets = rets - fees
+  total_ret = prod(rets + 1)
+  mean = mean(rets)
+  sd = sd(rets)
+  sr =  mean(rets - tb$ret) / sd(rets - tb$ret)
+  
+  sims[i, "mean"] = mean
+  sims[i, "sd"] = sd
+  sims[i, "sr"] = sr
+  sims[i, "total"] = total_ret
+}
+
+mean = mean(sims$mean)
+sd = mean(sims$sd)
+sr = mean(sims$sr)
+print(paste("Average return:", mean, "SD:", sd, "Sharp Ratio", sr))
+
+```
+Note: What does 60% right mean? Does it mean exactly 60% right? or just chooses correctly at 60% of years and randomizes the other 40%?
+
+
+```{r}
+# Plots
+sims %>% ggplot() + geom_histogram(aes(x = total), bins = 50, fill = 'blue', alpha = 0.3) + 
+  ggtitle("Distribution of sample returns")
+
+ggplot() + 
+  geom_histogram(aes(x = sims$mean, y = ..density..), bins = 50, fill = 'blue', alpha = 0.3) + 
+  ggtitle("Distribution of sample average returns")
+
+sims %>% ggplot() + geom_histogram(aes(x = sd), bins = 50, fill = 'blue', alpha = 0.3) + 
+  ggtitle("Distribution of sample SDs")
+
+sims %>% ggplot() + geom_histogram(aes(x = sr), bins = 50, fill = 'blue', alpha = 0.3) + 
+  ggtitle("Distribution of sample SRs")
+
+
+
+
+```
+
+
+
+# 4. Imperfect market timing with different forecast accuracies
+## a)
+```{r}
+# Need clarification on #3 and just simply loop
+
+
+
+```
+
+
+## b)
+```{r}
 
 
 
