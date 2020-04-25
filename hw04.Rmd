@@ -1,0 +1,22 @@
+---
+title: "Homework 4"
+author: "Tony Lian"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+options(scipen = 10)
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+library(tidyverse)
+library(kableExtra)
+library(moments)
+library(lubridate)
+library(gridExtra)
+
+
+
+```
+
+
+
