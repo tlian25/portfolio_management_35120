@@ -14,9 +14,225 @@ library(moments)
 library(lubridate)
 library(gridExtra)
 
+# Load data
+tb = fread("data/TB_7301_1912.csv")
+ret = fread("data/STOCK_RETS.csv")
+ret$date = as.Date(as.character(ret$date), "%Y%m%d")
+ret$tb = tb$t30ret
+```
 
+# 1 Estimating E and V by the sample estimates
+## a) Compute the sample estimates of E and V.
+```{r}
+tickers = c("XON", "PG", "PFE", "WMT", "INTC")
+
+stocks = ret %>% select(all_of(tickers))
+
+excess_ret = stocks - ret$tb %*% matrix(1,1,5)
+
+E = colMeans(excess_ret)
+V = cov(stocks)
+
+
+```
+
+## b) Compute the tangency portfolio weights based on E and V.
+```{r}
+W = (solve(V) %*% E) / sum(solve(V) %*% E)
+print("Weights")
+
+print(t(W))
+
+e_tang = (E %*% W)[1]
+print("Expected excess returns")
+print(e_tang)
+
+v_tang = (t(W) %*% V %*% W)[1]
+print("Variance")
+print(v_tang)
+
+sr_tang = e_tang / sqrt(v_tang)
+print("Sharpe Ratio")
+print(sr_tang)
+
+
+```
+I would not be willing to invest according to these weights. 36% in XON is too high for my taste.
+
+
+## c) How do the tangency portfolio weights compare to the weights in the minimum variance portfolio?
+```{r}
+i = matrix(1,5,1)
+W0 = (solve(V) %*% i) / (t(i) %*% solve(V) %*% i)[1]
+
+print("Weights")
+print(t(W0))
+
+e_mvp = (E %*% W0)[1]
+print("Expected excess returns")
+print(e_mvp)
+
+v_mvp = (t(W0) %*% V %*% W0)[1]
+print("Variance")
+print(v_mvp)
+
+sr_mvp = e_mvp/sqrt(v_mvp)
+print("Sharpe Ratio")
+print(sr_mvp)
+
+```
+Lower expected return, and lower Variance, lower SR for the MVP.
+
+
+## d) Since E is affected by statistical noise. Round E to two decimal places and recompute the tangency portfolio weights using rounded numbers.
+```{r}
+
+E_rounded = round(E, 2)
+
+W_rounded = (solve(V) %*% E_rounded) / (t(i) %*% solve(V) %*% E_rounded)[1]
+
+print("Weights")
+print(t(W_rounded))
+
+print("Differences")
+print(t(W_rounded) - t(W))
+
+```
+
+# 2. Estimating V by the identity matrix
+## a) Compute the tangency portfolio weight using the identity matrix I in place of V.
+```{r}
+I = diag(5)
+
+W = (I %*% E) / (t(i) %*% I %*% E)[1]
+
+print("Weights")
+print(t(W))
+```
+## b) How do these weights change if you round E to two decimal places as before?
+```{r}
+
+W_rounded = (I %*% E_rounded) / (t(i) %*% I %*% E_rounded)[1]
+
+print("Weights")
+print(t(W_rounded))
+
+print("Differences")
+print(t(W_rounded) - t(W))
+
+```
+
+# 3. Estimating E using the CAPM
+```{r}
+risk_prem = 0.005
+betas = matrix(c(0.6, 0.7, 1.2, 0.9, 1.2), nrow = 1)
+
+# Risk free rate
+rf = mean(ret$tb)
+
+E_capm = betas * risk_prem + rf
+colnames(E_capm) = tickers
+
+print("CAPM Expected Returns")
+print(E_capm)
+
+# Tangency Portfolio Weights
+W = (solve(V) %*% t(E_capm)) / (t(i) %*% solve(V) %*% t(E_capm))[1]
+
+print("Weights")
+print(t(W))
 
 ```
 
 
 
+# 4. Estimating E and V using Bayesian/shrinkage Techniques
+```{r}
+# Weighted average of E and E_capm, Equal weights
+E_b = (E + E_capm) / 2
+
+D = mean(diag(V))[1] * I
+V_b = (V + D) / 2
+
+W_b = (solve(V_b) %*% t(E_b)) / (t(i) %*% solve(V_b) %*% t(E_b))[1]
+
+print("Weights")
+print(t(W_b))
+
+```
+
+# 5. Dynamic portfolio rebalancing
+```{r}
+
+r = ret %>% select(all_of(tickers))
+re = r - ret$tb %*% matrix(1, 1, 5)
+
+f1 = which(ret$date >= '1978-01-31' & format(ret$date, '%m') == "01")
+
+
+colnm = c('ret', 'exret')
+rownm = format(ret$date[f1[1]:nrow(ret)], '%Y-%m-%d')
+out1 = as.data.frame(matrix(NA, length(rownm), 2, dimnames = list(rownm, colnm)))
+out2 = as.data.frame(matrix(NA, length(d), 2, dimnames = list(rownm, colnm)))
+out3 = as.data.frame(matrix(NA, length(d), 2, dimnames = list(rownm, colnm)))
+out4 = as.data.frame(matrix(NA, length(d), 2, dimnames = list(rownm, colnm)))
+
+for (tt in 1:length(f1)) {
+  
+  # Subset returns and excess returns
+  # Historical
+  r1 = r[1:(f1[tt]-1), ]
+  re1 = re[1:(f1[tt]-1),]
+  
+  # Historical estimate
+  ER1o = colMeans(re1)
+  V1o = cov(r1)
+  W1o = solve(V1o) %*% ER1o / sum(solve(V1o) %*% ER1o)
+  
+  # Capm
+  ER2o = t(risk_prem * betas)
+  W2o = solve(V1o) %*% ER2o / sum(solve(V1o) %*% ER2o)
+  
+  # Identity Matrix in place of V
+  V3o = diag(1, 5)
+  W3o = V3o %*% ER1o / sum(ER1o)
+  
+  # Bayesian
+  avgvar = mean(diag(V1o))
+  p = 0.5
+  ER4o = p * ER1o + (1-p) * ER2o
+  V4o = p * V1o + (1-p) * avgvar * diag(1, 5)
+  W4o = solve(V4o) %*% ER4o / sum(solve(V4o) %*% ER4o)
+  
+  
+  # Calculate returns for next year
+  r2 = as.matrix(r[f1[tt]:(f1[tt]+11), ])
+  re2 = as.matrix(re[f1[tt]:(f1[tt]+11), ])
+  out1[(12*tt-11):(12*tt), ] = cbind(r2 %*% W1o, re2 %*% W1o)
+  out2[(12*tt-11):(12*tt), ] = cbind(r2 %*% w2o, re2 %*% w2o)
+  out3[(12*tt-11):(12*tt), ] = cbind(r2 %*% w3o, re2 %*% w3o)
+  out4[(12*tt-11):(12*tt), ] = cbind(r2 %*% w4o, re2 %*% w4o)
+  
+}
+  
+we1 = cumprod(out1$ret+1) - 1
+we2 = cumprod(out2$ret+1) - 1
+we3 = cumprod(out3$ret+1) - 1
+we4 = cumprod(out4$ret+1) - 1
+
+
+avgrets = c(mean(out1$ret), mean(out2$ret), mean(out3$ret), mean(out4$ret))
+stdrets = c(sd(out1$ret), sd(out2$ret), sd(out3$ret), sd(out4$ret))
+sharpes = c(mean(out1$exret)/sd(out1$ret), mean(out2$exret)/sd(out2$ret), 
+            mean(out3$exret)/sd(out3$ret), mean(out4$exret)/sd(out4$ret))
+
+
+print("Average returns")
+print(avgrets)
+
+print("Stddevs")
+print(stdrets)
+
+print("Sharpe Ratios")
+print(sharpes)
+```
