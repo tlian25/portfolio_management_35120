@@ -173,9 +173,9 @@ f1 = which(ret$date >= '1978-01-31' & format(ret$date, '%m') == "01")
 colnm = c('ret', 'exret')
 rownm = format(ret$date[f1[1]:nrow(ret)], '%Y-%m-%d')
 out1 = as.data.frame(matrix(NA, length(rownm), 2, dimnames = list(rownm, colnm)))
-out2 = as.data.frame(matrix(NA, length(d), 2, dimnames = list(rownm, colnm)))
-out3 = as.data.frame(matrix(NA, length(d), 2, dimnames = list(rownm, colnm)))
-out4 = as.data.frame(matrix(NA, length(d), 2, dimnames = list(rownm, colnm)))
+out2 = as.data.frame(matrix(NA, length(rownm), 2, dimnames = list(rownm, colnm)))
+out3 = as.data.frame(matrix(NA, length(rownm), 2, dimnames = list(rownm, colnm)))
+out4 = as.data.frame(matrix(NA, length(rownm), 2, dimnames = list(rownm, colnm)))
 
 for (tt in 1:length(f1)) {
   
@@ -209,9 +209,9 @@ for (tt in 1:length(f1)) {
   r2 = as.matrix(r[f1[tt]:(f1[tt]+11), ])
   re2 = as.matrix(re[f1[tt]:(f1[tt]+11), ])
   out1[(12*tt-11):(12*tt), ] = cbind(r2 %*% W1o, re2 %*% W1o)
-  out2[(12*tt-11):(12*tt), ] = cbind(r2 %*% w2o, re2 %*% w2o)
-  out3[(12*tt-11):(12*tt), ] = cbind(r2 %*% w3o, re2 %*% w3o)
-  out4[(12*tt-11):(12*tt), ] = cbind(r2 %*% w4o, re2 %*% w4o)
+  out2[(12*tt-11):(12*tt), ] = cbind(r2 %*% W2o, re2 %*% W2o)
+  out3[(12*tt-11):(12*tt), ] = cbind(r2 %*% W3o, re2 %*% W3o)
+  out4[(12*tt-11):(12*tt), ] = cbind(r2 %*% W4o, re2 %*% W4o)
   
 }
   
@@ -219,6 +219,8 @@ we1 = cumprod(out1$ret+1) - 1
 we2 = cumprod(out2$ret+1) - 1
 we3 = cumprod(out3$ret+1) - 1
 we4 = cumprod(out4$ret+1) - 1
+
+
 
 
 avgrets = c(mean(out1$ret), mean(out2$ret), mean(out3$ret), mean(out4$ret))
@@ -235,4 +237,18 @@ print(stdrets)
 
 print("Sharpe Ratios")
 print(sharpes)
+
+agg_dt = data.table(date = ret$date[61:nrow(ret)],
+                    we1 = we1,
+                    we2 = we2,
+                    we3 = we3,
+                    we4 = we4)
+
+
+agg_dt %>% ggplot(aes(x = date)) + 
+  geom_line(aes(y = we1), linetype = 1) +
+  geom_line(aes(y = we2), linetype = 2) +
+  geom_line(aes(y = we3), linetype = 3) + 
+  geom_line(aes(y = we4), linetype = 4)
+
 ```
