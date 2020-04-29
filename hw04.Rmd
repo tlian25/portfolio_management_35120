@@ -31,7 +31,9 @@ stocks = ret %>% select(all_of(tickers))
 excess_ret = stocks - ret$tb %*% matrix(1,1,5)
 
 E = colMeans(excess_ret)
+print(E)
 V = cov(stocks)
+print(V)
 
 
 ```
@@ -127,17 +129,15 @@ print(t(W_rounded) - t(W))
 risk_prem = 0.005
 betas = matrix(c(0.6, 0.7, 1.2, 0.9, 1.2), nrow = 1)
 
-# Risk free rate
-rf = mean(ret$tb)
-
-E_capm = betas * risk_prem + rf
+# CAPM excess returns
+E_capm = betas * risk_prem
 colnames(E_capm) = tickers
 
 print("CAPM Expected Returns")
 print(E_capm)
 
 # Tangency Portfolio Weights
-W = (solve(V) %*% t(E_capm)) / (t(i) %*% solve(V) %*% t(E_capm))[1]
+W = (solve(V) %*% t(E_capm)) / sum(solve(V) %*% t(E_capm))
 
 print("Weights")
 print(t(W))
