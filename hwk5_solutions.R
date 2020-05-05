@@ -8,12 +8,12 @@
 # options(scipen=999) represses it completely
 options(scipen=10)
 
-raus = read.table('australia.txt', skip = 2, header = TRUE)
-rfra = read.table('france.txt', skip = 2, header = TRUE)
-rger = read.table('germany.txt', skip = 2, header = TRUE)
-rita = read.table('italy.txt', skip = 2, header = TRUE)
-rjap = read.table('japan.txt', skip = 2, header = TRUE)
-rbri = read.table('uk.txt', skip = 2, header = TRUE)
+raus = read.table('data/australia.txt', skip = 2, header = TRUE)
+rfra = read.table('data/france.txt', skip = 2, header = TRUE)
+rger = read.table('data/germany.txt', skip = 2, header = TRUE)
+rita = read.table('data/italy.txt', skip = 2, header = TRUE)
+rjap = read.table('data/japan.txt', skip = 2, header = TRUE)
+rbri = read.table('data/uk.txt', skip = 2, header = TRUE)
 years = as.numeric(substr(as.character(rbri$X.), 1, 4))
 months = as.numeric(substr(as.character(rbri$X.), 5, 6))
 dates = as.Date(paste0(as.character(rbri$X.), '28'), '%Y%m%d')
@@ -31,18 +31,26 @@ mov.avg = as.data.frame(matrix(NA, nrow(int.hml), ncol(int.hml),
 for (t in (1+W):t.len) mov.avg[t,] = colMeans(int.hml[(t-W):t,])
 mov.avg$dates = dates
 mov.avg = mov.avg[is.finite(mov.avg$AUS),]
-#setEPS()
-#postscript("int_movavg.eps")
-#par(mfrow = c(3,2))
-#for (j in 1:6) {
-#  plot(mov.avg$dates, mov.avg[,j], type = 'l',  
-#       xlab = '', ylab = '', main = countries[j],
-#       ylim = c(-0.015, 0.025))
-#  lines(mov.avg$dates, rep(0, nrow(mov.avg)))
-#}
-#dev.off()
+
+
+
+
+setEPS()
+postscript("int_movavg.eps")
+par(mfrow = c(3,2))
+for (j in 1:6) {
+  plot(mov.avg$dates, mov.avg[,j], type = 'l',  
+       xlab = '', ylab = '', main = countries[j],
+       ylim = c(-0.015, 0.025))
+  lines(mov.avg$dates, rep(0, nrow(mov.avg)))
+}
+dev.off()
+
+
+
+
 int.hml$date = dates
-ff.factors = read.table('ff_factors_192607_201912.txt', header = TRUE)
+ff.factors = read.table('data/ff_factors_192607_201912.txt', header = TRUE)
 names(ff.factors) = c('date', 'mktrf', 'smb', 'hml', 'rf')
 ff.factors$date = as.Date(paste0(as.character(ff.factors$date), '28'), '%Y%m%d')
 for (varname in c('mktrf', 'smb', 'hml', 'rf')) ff.factors[varname] = ff.factors[varname]/100

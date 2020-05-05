@@ -82,9 +82,23 @@ hml.sma.5 = as.data.frame(hml.sma.5)
 colnames(hml.sma.5) = country_names
 hml.sma.5$date = aus$date
 
+plots = list()
+for (i in 1:length(country_names)) {
+  plots[[country_names[i]]] = hml.sma.5[, c(i, 7)] %>% 
+    setNames(c('ret', 'date')) %>%
+    ggplot() + 
+    geom_bar(aes(x = as.factor(date), y = ret), stat = 'identity') + 
+    theme(axis.text.x = element_text(angle = 90)) +
+    ylab("HML Returns SMA5") +
+    ggtitle(country_names[i])
+}
 
-p = hml.sma.5 %>% filter(date > '200701' & date < '200901') %>% 
-  ggplot(aes(x = as.factor(date))) + 
+do.call("grid.arrange", c(plots, ncol = 2))
+```
+
+```{r}
+p1 = hml.sma.5 %>% 
+  ggplot(aes(x = as.factor(date))) +
   geom_bar(aes(y = aus, fill = "aus"), alpha = 0.5, stat = 'identity') +
   geom_bar(aes(y = fr, fill = 'fr'), alpha = 0.5, stat = 'identity') + 
   geom_bar(aes(y = ger, fill = 'ger'), alpha = 0.5, stat = 'identity') + 
@@ -94,8 +108,22 @@ p = hml.sma.5 %>% filter(date > '200701' & date < '200901') %>%
   theme(axis.text.x = element_text(angle = 90)) +
   ylab("HML Returns SMA5")
 
+print(p1)
 
-print(p)
+p2 = hml.sma.5 %>% filter(date > '200701' & date < '200901') %>% 
+  ggplot(aes(x = as.factor(date))) + 
+  geom_bar(aes(y = aus, fill = "aus"), alpha = 0.5, stat = 'identity') +
+  geom_bar(aes(y = fr, fill = 'fr'), alpha = 0.5, stat = 'identity') + 
+  geom_bar(aes(y = ger, fill = 'ger'), alpha = 0.5, stat = 'identity') + 
+  geom_bar(aes(y = ita, fill = 'ita'), alpha = 0.5, stat = 'identity') + 
+  geom_bar(aes(y = jpn, fill = 'jpn'), alpha = 0.5, stat = 'identity') + 
+  geom_bar(aes(y = uk, fill = 'uk'), alpha = 0.5, stat = 'identity') + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  ylab("HML Returns SMA5") + 
+  ggtitle("HML Returns SMA5 2007-2009")
+
+
+print(p2)
 
 ```
 
@@ -128,7 +156,7 @@ I = matrix(1, 7, 1)
 # Weightings of Minimum Variance Portfolio
 w1 = solve(V1) %*% I / sum(t(I) %*% solve(V1))
 
-print(t(w1))
+t(w1) %>% kable() %>% kable_styling()
 ```
 
 Very low weighting of 6.5% on US equities. Seems like international stocks offer lower variances.
@@ -136,13 +164,105 @@ Very low weighting of 6.5% on US equities. Seems like international stocks offer
 # 6. Consider a mean-variance investor who currently holds all her $1 million in the US market portfolio. She holds zero position in the risk-free T-bill and she considers such a position optimal, given the historical moments of asset returns. What is the investor's risk aversion $\gamma$? Explain how you obtained your result.
 
 ```{r}
+# Filter after 1975
+ff = ff %>% filter(date >= '197501')
+V = var(ff$mkt / 100)
+E = mean(ff$mkt / 100)
+
+gamma = E/V
 
 
+print(gamma)
 
 
+```
+$w_{op} = \frac{1}{\gamma} V^{-1} E$ Need to solve for $\gamma$
 
+# 7. This investor is considering tilting her portfolio toward value stocks. She is unwilling to invest internationally, but she is willing to invest in HML. Using sample estimates of expected returns, variances, and covariances, compute the optimal allocation of this investor across the US market, HML, and the T-bill.
+
+```{r}
+assets = ff[,c("mkt", "hml")]
+
+E = as.matrix(colMeans(assets))
+V = as.matrix(cov(assets))
+
+W = 1 / gamma * 100 * solve(V) %*% E
+t(W) %>% kable() %>% kable_styling()
+
+```
+
+Short the T-bill to buy more stocks
+
+
+# 8. How much did the investor's Sharpe ratio increase as a result of the value tilt? How much did the squared Sharpe ratio increase?
+
+```{r}
+sr = mean(ff$mkt) / sd(ff$mkt)
+
+print(paste("Market SR:", sr))
+
+
+sr2 = t(W) %*% E / sqrt(t(W) %*% V %*% W)
+
+print(paste("HML SR:", sr2[1]))
+
+print(paste("SR diff: ", sr2[1] - sr))
+
+print(paste("SR sq diff:", sr2[1]**2 - sr**2))
+
+```
+
+# 9. Compute HML's information ratio relative to the US market. How does the square of this ratio compare to the improvement in the squared Sharpe ratio that you computed in the previous part?
+
+```{r}
+
+inf.lm = lm(hml ~ mkt, data = ff)
+alpha = inf.lm$coefficients[1]
+se = sd(inf.lm$residuals)
+
+IR = alpha / se
+
+print(paste("Information ratio: ", IR))
+
+print(paste("Information ratio sq: ", IR**2))
 
 
 
 
 ```
+Same as the Sharpe ratio squared diff.
+
+
+# 10. Now suppose this investor is willing to take positions in any of the seven international value-growth spreads. Using the sample estimate as before, construct the investor's optimal portfolio of the eight risky assets.
+
+```{r}
+
+assets = cbind(ff[, c("mkt", 'hml')], hml[, 1:6]) %>% rename(us = 'hml')
+
+E = colMeans(assets) %>% as.matrix()
+
+V = cov(assets) %>% as.matrix()
+
+
+W = 1 / gamma * 100 * solve(V) %*% E 
+
+t(W) %>% kable() %>% kable_styling()
+
+```
+
+# 11. Compare the resulting Sharpe ratio with the Sharpe ratio obtained by the US only optimal combination of the market with HML. Given this comparison, would you recommend for US value investors to go global?
+
+```{r}
+
+sr3 = t(W) %*% E / sqrt(t(W) %*% V %*% W)
+
+print(paste("Sharpe ratio: ", sr3[1]))
+
+```
+
+Yes, definitely go global.
+
+
+
+
+
