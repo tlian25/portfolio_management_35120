@@ -1,0 +1,148 @@
+---
+title: "Homework 5"
+author: "Tony Lian"
+output: html_document
+---
+  
+```{r setup, include=FALSE}
+options(scipen = 10)
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+library(tidyverse)
+library(kableExtra)
+library(moments)
+library(lubridate)
+library(gridExtra)
+library(TTR)
+
+cols = c("date", "mkt", "bm_h", "bm_l", "ep_h", "ep_l", "cp_h", "cp_l", "yld_h", "yld_l", "yld_z")
+aus = read.table("data/australia.txt", skip = 2, header = TRUE)
+colnames(aus) = cols
+
+fr = read.table("data/france.txt", skip = 2, header = TRUE)
+colnames(fr) = cols
+
+ger = read.table("data/germany.txt", skip = 2, header = TRUE)
+colnames(ger) = cols
+
+ita = read.table("data/italy.txt", skip = 2, header = TRUE)
+colnames(ita) = cols
+
+jpn = read.table("data/japan.txt", skip = 2, header = TRUE)
+colnames(jpn) = cols
+
+uk = read.table("data/uk.txt", skip = 2, header = TRUE)
+colnames(uk) = cols
+
+ff = read.table("data/ff_factors_192607_201912.txt", header = TRUE)
+colnames(ff) = c('date', 'mkt', 'smb', 'hml', 'rf')
+
+```
+
+
+# 1. For which countries is the value effect significantly different from zero in the full sample? based on your results, do you agree with the opinion of the casewriter on page 4 of the DFA case?
+
+```{r}
+countries = list(aus, fr, ger, ita, jpn, uk)
+country_names = c("aus", "fr", "ger", "ita", "jpn", "uk")
+
+
+hml = matrix(data = NA, nrow = dim(aus)[1], 6)
+for (i in 1:length(countries)) {
+  
+  hml[,i] = countries[[i]]$bm_h - countries[[i]]$bm_l
+}
+
+hml = as.data.frame(hml)
+colnames(hml) = country_names
+
+# Mean, SD, and T-stat
+m.hml = colMeans(hml)
+s.hml = apply(hml, 2, sd)
+t.hml = sqrt(dim(hml)[1]) * m.hml / s.hml
+
+cbind(rbind("mean", "sd", "t"), rbind(m.hml, s.hml, t.hml) %>% round(4)) %>% 
+  kable() %>% kable_styling()
+
+```
+
+# 2. For each country, plot the 5-year moving average the value minus growth returns. Which stocks performed better during the 2007-08 financial crisis, value or growth? Does your answer support the Fama French argument that value premium is due to risk?
+
+```{r}
+# Moving average calculations
+hml.sma.5 = matrix(data = NA, nrow = dim(hml)[1], dim(hml)[2])
+
+for (i in 1:dim(hml)[2]) {
+  # SMA of 5 periods
+  hml.sma.5[, i] = SMA(hml[,i], n = 5)
+
+}
+
+hml.sma.5 = as.data.frame(hml.sma.5)
+colnames(hml.sma.5) = country_names
+hml.sma.5$date = aus$date
+
+
+p = hml.sma.5 %>% filter(date > '200701' & date < '200901') %>% 
+  ggplot(aes(x = as.factor(date))) + 
+  geom_bar(aes(y = aus, fill = "aus"), alpha = 0.5, stat = 'identity') +
+  geom_bar(aes(y = fr, fill = 'fr'), alpha = 0.5, stat = 'identity') + 
+  geom_bar(aes(y = ger, fill = 'ger'), alpha = 0.5, stat = 'identity') + 
+  geom_bar(aes(y = ita, fill = 'ita'), alpha = 0.5, stat = 'identity') + 
+  geom_bar(aes(y = jpn, fill = 'jpn'), alpha = 0.5, stat = 'identity') + 
+  geom_bar(aes(y = uk, fill = 'uk'), alpha = 0.5, stat = 'identity') + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  ylab("HML Returns SMA5")
+
+
+print(p)
+
+```
+
+Seems like value stocks performed better during this period.
+
+# 3. Augment the international data with HML returns. Estimate the 7x7 correlation matrix of the value-growth spreads. Based on your results do you agree with the opinion of the casewriter of the DFA case?
+
+```{r}
+# Subset FF dates
+
+hml$date = aus$date
+merged = hml %>% merge(ff[, c('date', 'hml')], by.x = 'date', by.y = 'date') %>%
+  rename(us = 'hml')
+
+V1 = cor(merged[,-1])
+
+V1 %>% kable() %>% kable_styling()
+
+```
+
+# 4. Given the correlations, would you recommend for US value investors to go global?
+
+Yes, there seems to be low correlations and so we can improve our Sharpe ratio by diversifying internationally.
+
+
+# 5. Combine the 7 value-growth spreads into a portfolio with minimum total risk. Compare the portfolio's standard deviation with that of HML. Any surprise?
+
+```{r}
+I = matrix(1, 7, 1)
+# Weightings of Minimum Variance Portfolio
+w1 = solve(V1) %*% I / sum(t(I) %*% solve(V1))
+
+print(t(w1))
+```
+
+Very low weighting of 6.5% on US equities. Seems like international stocks offer lower variances.
+
+# 6. Consider a mean-variance investor who currently holds all her $1 million in the US market portfolio. She holds zero position in the risk-free T-bill and she considers such a position optimal, given the historical moments of asset returns. What is the investor's risk aversion $\gamma$? Explain how you obtained your result.
+
+```{r}
+
+
+
+
+
+
+
+
+
+```
