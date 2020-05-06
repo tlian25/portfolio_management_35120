@@ -138,9 +138,9 @@ hml$date = aus$date
 merged = hml %>% merge(ff[, c('date', 'hml')], by.x = 'date', by.y = 'date') %>%
   rename(us = 'hml')
 
-V1 = cor(merged[,-1])
+correls = cor(merged[,-1])
 
-V1 %>% kable() %>% kable_styling()
+correls %>% kable() %>% kable_styling()
 
 ```
 
@@ -153,6 +153,8 @@ Yes, there seems to be low correlations and so we can improve our Sharpe ratio b
 
 ```{r}
 I = matrix(1, 7, 1)
+V1 = cov(merged[,-1])
+
 # Weightings of Minimum Variance Portfolio
 w1 = solve(V1) %*% I / sum(t(I) %*% solve(V1))
 
