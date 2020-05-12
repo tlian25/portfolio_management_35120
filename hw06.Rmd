@@ -1,0 +1,95 @@
+---
+title: "Homework 6"
+author: "Tony Lian"
+output: html_document
+---
+  
+```{r setup, include=FALSE}
+options(scipen = 10)
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+library(tidyverse)
+library(kableExtra)
+library(moments)
+library(lubridate)
+library(gridExtra)
+library(TTR)
+
+
+liq = read.table("data/liq_data_1962_2018.txt", skip = 11, header= FALSE)
+names(liq) = c("month", "agg_liq", "innov_liq", "traded_liq")
+
+liqvw = read.table("data/liq_vw_hist_deciles_1968_2018.txt", skip = 2, header = FALSE)
+names(liqvw) = c("d1", "d2", "d3", "d4", "d5", "d6", "d7", "d8", "d9", "d10", "ls")
+
+ff = read.table("data/ff_factors_192607_201912.txt", header = TRUE)
+names(ff) = c("date", "mkt", "smb", "hml", "rf")
+
+vix = read.table("data/vix.txt", skip=1)
+names(vix) = c("vix")
+
+vix$index = c(1:nrow(vix)) -1
+vix$month = (vix$index) %% 12 + 1
+vix$year = 1990 + floor(vix$index/12)
+
+```
+
+# 1. What is the correlation between the innovations in liquidity and the VIX index? Use the longest time period over which both series are available. Provide an economic explanation for why this correlation is negative.
+
+```{r}
+
+
+
+
+
+
+
+```
+
+
+
+# 2. What is the correlation between the innovations in liquidity and stokc market returns? Can you explain the sign of the correlation?
+
+```{r}
+
+
+
+
+```
+
+# 3. Is liquidity risk priced? Do stocks with higher liquidity betas continue to have higher Fama-French alphas? Does the 10-1 porfolio have a significantly positive alpha?
+
+```{r}
+
+
+
+```
+
+## a) Answer the same questions using the sample period Jan 2000 - Dec 2018. 
+
+```{r}
+
+
+
+```
+
+
+## b) For both time periods, plot the Fama-French alphas across the 10 portfolios.
+
+```{r}
+
+
+
+```
+
+
+# 4. Do historical liquidity betas predict future liquidity betas?  For both periods, plot those liquidity betas across the 10 portfolios. Do the betas exhibit an increasing pattern across the 10 portfolios? Does the 10-1 portfolio have a significantly positive liquidity beta?
+
+```{r}
+
+
+
+
+```
+
+
