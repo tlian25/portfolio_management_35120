@@ -18,15 +18,16 @@ gen.dates = function(yb, mb, ye, me) {
 }
 
 liq.names = c(paste0('dec', 1:10), 'dec10min1')
-liq = read.table('liq.txt', comment.char = '%')
+liq = read.table('data/liq_data_1962_2018.txt', comment.char = '%')
 names(liq) = c('date', 'liq')
-vix = read.table('vix.txt', comment.char = '%')
+liq = liq[, 1:2]
+vix = read.table('data/vix.txt', comment.char = '%')
 names(vix) = 'vix'
 vix$date = gen.dates(1990, 1, maxyear, 12)
-liq.fac = read.table('liq_vw_hist_deciles_1968_2018.txt', comment.char = '%')
+liq.fac = read.table('data/liq_vw_hist_deciles_1968_2018.txt', comment.char = '%')
 names(liq.fac) = liq.names
 liq.fac$date = gen.dates(1968, 1, maxyear, 12)
-ff.fac = read.table('ff_factors_192607_201912.txt', comment.char = '%')
+ff.fac = read.table('data/ff_factors_192607_201912.txt', comment.char = '%')
 names(ff.fac) = c('date', 'mktrf', 'smb', 'hml', 'rf')
 data = merge(liq, vix, by = 'date', all = TRUE)
 data = merge(data, liq.fac, by = 'date', all = TRUE)
@@ -85,8 +86,8 @@ for(i in 1:length(liq.ports)) {
   oos.liq[2, i] = summary(reg)$coefficients[2, 3]
 }
 
-setEPS()
-postscript("fig_liq_alp_bet.eps")
+#setEPS()
+#postscript("fig_liq_alp_bet.eps")
 par(mfrow = c(2,1))
 plot(1:10, all.sample[1,1:10], lty = 1, type = 'l',
      main = 'Upward slope => Liquidity risk is priced',
@@ -102,4 +103,4 @@ plot(1:10, all.liq[1,1:10], lty = 1, type = 'l',
      ylim = c(-0.1, 0.1))
 lines(1:10, oos.liq[1,1:10], lty = 2)
 legend('bottomright', legend = c('196801-201812', '200001-201812'), lty = 1:2)
-dev.off()
+#dev.off()
