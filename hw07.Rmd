@@ -1,0 +1,54 @@
+---
+title: "Homework 6"
+author: "Tony Lian"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+options(scipen = 10)
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+library(tidyverse)
+library(kableExtra)
+library(lubridate)
+library(gridExtra)
+
+
+letf = read.csv("data/LETF.csv")
+
+tickers = letf$TICKER %>% unique()
+date = letf$date %>% unique()
+
+spx = read.csv("data/SP500.csv")
+
+data = merge(letf, spx, by = 'date', all = TRUE)
+```
+
+
+
+# 1. Index vs. 1x ETF. Plot the cumulative return series of the S&P 500 index and SPY. How does the 1x ETF track the performance of the underlying index?
+
+
+
+# 2. Buying and holding LETFs.
+## (a) Compare the strategy of investing in a 2x LETF to a double-levered investment in the corresponding unlevered ETF. For each of the four indexes, produce a chart showing cumulative returns from the two strategies. Does either strategy perform better? Why?
+
+
+## (b) For all four indexes, compare the strategy of going long (i.e., buying) a 1x unlevered ETF with the strategy of going short (i.e., selling) the -1x LETF on the same index. For each of the four indexes, plot the two cumulative return series in the same chart. Do the two strategies deliver the same performance? Why? Does the answer change if you do the same for 2x versus -2x LETFs?
+
+
+
+
+
+
+## (c) Analyze LETF performance during the financial crisis. Specifically, for three of the LETFs benchmarked to Russell 2000, namely IWM, UWM, and TWM, plot their cumulative returns for the 3-year period between May 31, 2007 and May 31, 2010. Do you find anything interesting? Explain.
+
+
+
+# 3. A paired LETF strategy. For all four indexes, consider the buy-and-hold strategy that buys both a 2x and -2x LETF on the same index. On day 1, split the initial $1 investment equally between the 2x and -2x LETFs, and hold on to your LETF portfolio without any subsequent rebalancing. Plot the cumulative returns of this strategy for each of the four indexes. Does this strategy perform well or poorly over the full sample period? Why?
+
+
+
+
+# 4. The main lesson. What if anything have you learned from this exercise?
