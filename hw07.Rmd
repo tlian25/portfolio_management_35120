@@ -1,5 +1,5 @@
 ---
-title: "Homework 6"
+title: "Homework 7"
 author: "Tony Lian"
 output: html_document
 ---
@@ -13,6 +13,7 @@ library(tidyverse)
 library(kableExtra)
 library(lubridate)
 library(gridExtra)
+library(zoo)
 
 
 letf = read.csv("data/LETF.csv")
@@ -23,20 +24,130 @@ date = letf$date %>% unique()
 spx = read.csv("data/SP500.csv")
 
 data = merge(letf, spx, by = 'date', all = TRUE)
+
+data$date = as.Date(as.character(data$date), '%Y%m%d')
+
 ```
 
 
 
 # 1. Index vs. 1x ETF. Plot the cumulative return series of the S&P 500 index and SPY. How does the 1x ETF track the performance of the underlying index?
 
+```{r}
+cumret = data.frame(date = data$date)
+
+for (i in 1:(ncol(data)-1)) {
+  cumret[,i+1] = cumprod(data[,i+1] + 1)
+}
+names(cumret) = names(data)
+
+
+data %>% ggplot() + 
+  geom_line(aes(x = date, y = cumprod(sp500 + 1), color = "SP500")) + 
+  geom_line(aes(x = date, y = cumprod(SPY + 1), color = "SPY")) +
+  ylab("Cumul Returns")
+
+```
+
 
 
 # 2. Buying and holding LETFs.
 ## (a) Compare the strategy of investing in a 2x LETF to a double-levered investment in the corresponding unlevered ETF. For each of the four indexes, produce a chart showing cumulative returns from the two strategies. Does either strategy perform better? Why?
 
+```{r}
+# Compare 2x index vs 2x levered
+
+data %>% filter(!is.na(SSO)) %>% ggplot(aes(x = date)) + 
+  geom_line(aes(y = cumprod(SPY*2 + 1), color = "Index x2")) + 
+  geom_line(aes(y = cumprod(SSO + 1), color = "Lever2")) + 
+  ggtitle("SPY x2 vs SSO")
+
+
+data %>% filter(!is.na(UYG)) %>% ggplot(aes(x = date)) + 
+  geom_line(aes(y = cumprod(IYF*2 + 1), color = "Index x2")) + 
+  geom_line(aes(y = cumprod(UYG + 1), color = "Lever2")) + 
+  ggtitle("IYF x2 vs UYG")
+
+
+data %>% filter(!is.na(URE)) %>% ggplot(aes(x = date)) + 
+  geom_line(aes(y = cumprod(IYR*2 + 1), color = "Index x2")) + 
+  geom_line(aes(y = cumprod(URE + 1), color = "Lever2")) + 
+  ggtitle("IYR x2 vs URE")
+
+
+data %>% filter(!is.na(UWM)) %>% ggplot(aes(x = date)) + 
+  geom_line(aes(y = cumprod(IWM*2 + 1), color = "Index x2")) + 
+  geom_line(aes(y = cumprod(UWM + 1), color = "Lever2")) + 
+  ggtitle("IWM x2 vs UWM")
+
+
+```
+
+
+
+
 
 ## (b) For all four indexes, compare the strategy of going long (i.e., buying) a 1x unlevered ETF with the strategy of going short (i.e., selling) the -1x LETF on the same index. For each of the four indexes, plot the two cumulative return series in the same chart. Do the two strategies deliver the same performance? Why? Does the answer change if you do the same for 2x versus -2x LETFs?
 
+```{r}
+# Compare index vs short inverse
+
+data %>% filter(!is.na(SH)) %>% ggplot(aes(x = date)) + 
+  geom_line(aes(y = cumprod(SPY + 1), color = "Index")) + 
+  geom_line(aes(y = cumprod(SH*-1 + 1), color = "Inverse x-1")) +
+  ggtitle("SPY vs SH x-1")
+
+
+data %>% filter(!is.na(SEF)) %>% ggplot(aes(x = date)) + 
+  geom_line(aes(y = cumprod(IYF + 1), color = "Index")) + 
+  geom_line(aes(y = cumprod(SEF*-1 +1), color = "Inverse x-1")) + 
+  ggtitle("IYF vs SEF x-1")
+
+
+data %>% filter(!is.na(REK)) %>% ggplot(aes(x = date)) + 
+  geom_line(aes(y = cumprod(IYR + 1), color = "Index")) + 
+  geom_line(aes(y = cumprod(REK*-1 + 1), color = "Inverse x-1")) +
+  ggtitle("IYR vs REK x-1")
+
+
+data %>% filter(!is.na(RWM)) %>% ggplot(aes(x = date)) + 
+  geom_line(aes(y = cumprod(IWM + 1), color = "Index")) + 
+  geom_line(aes(y = cumprod(RWM*-1 + 1), color = "Inverse x-1")) +
+  ggtitle("IWM vs RWM x-1")
+
+
+
+
+```
+
+```{r}
+# Compare 2x Index vs short 2x Levered inverse
+
+data %>% filter(!is.na(SDS)) %>% ggplot(aes(x = date)) + 
+  geom_line(aes(y = cumprod(SPY*2 +1), color = "Index x2")) + 
+  geom_line(aes(y = cumprod(SDS*-1 + 1), color = "Inverse2 x-1")) +
+  ggtitle("SPY x2 vs SDS x-1")
+
+
+data %>% filter(!is.na(SKF)) %>% ggplot(aes(x = date)) + 
+  geom_line(aes(y = cumprod(IYF*2 + 1), color = "Index x2")) + 
+  geom_line(aes(y = cumprod(SKF*-1 + 1), color = "Inverse x-1")) + 
+  ggtitle("IYF x2 vs SKF x-1")
+
+
+
+data %>% filter(!is.na(SRS)) %>% ggplot(aes(x = date)) + 
+  geom_line(aes(y = cumprod(IYR*2 + 1), color = "Index x2")) + 
+  geom_line(aes(y = cumprod(SRS*-1 + 1), color = "Inverse x-1")) + 
+  ggtitle("IYR x2 vs SRS x-1")
+
+
+data %>% filter(!is.na(TWM)) %>% ggplot(aes(x = date)) + 
+  geom_line(aes(y = cumprod(IWM*2 + 1), color = "Index x2")) + 
+  geom_line(aes(y = cumprod(TWM*-1 + 1), color = "Inverse x-1")) + 
+  ggtitle("IWM x2 vs TWM x-1")
+
+```
 
 
 
@@ -44,11 +155,43 @@ data = merge(letf, spx, by = 'date', all = TRUE)
 
 ## (c) Analyze LETF performance during the financial crisis. Specifically, for three of the LETFs benchmarked to Russell 2000, namely IWM, UWM, and TWM, plot their cumulative returns for the 3-year period between May 31, 2007 and May 31, 2010. Do you find anything interesting? Explain.
 
+```{r}
+
+data %>% filter(between(date, as.Date('2007-05-31'), as.Date('2010-05-31'))) %>%
+  ggplot(aes(x = date)) + 
+  geom_line(aes(y = cumprod(IWM + 1), color = "IWM")) + 
+  geom_line(aes(y = cumprod(UWM + 1), color = "UWM")) + 
+  geom_line(aes(y = cumprod(TWM + 1), color = "TWM"))
+
+```
+
 
 
 # 3. A paired LETF strategy. For all four indexes, consider the buy-and-hold strategy that buys both a 2x and -2x LETF on the same index. On day 1, split the initial $1 investment equally between the 2x and -2x LETFs, and hold on to your LETF portfolio without any subsequent rebalancing. Plot the cumulative returns of this strategy for each of the four indexes. Does this strategy perform well or poorly over the full sample period? Why?
 
+```{r}
+# 50/50 2x and -2x levered etfs
 
+data %>% filter(!is.na(SSO) & !is.na(SDS)) %>%
+  ggplot(aes(x = date)) + 
+  geom_line(aes(y = 0.5 * cumprod(SSO + 1) + 0.5 * cumprod(SDS + 1), color = "SSO+SDS")) 
+
+data %>% filter(!is.na(UYG) & !is.na(SKF)) %>%
+  ggplot(aes(x = date)) + 
+  geom_line(aes(y = 0.5 * cumprod(UYG + 1) + 0.5 * cumprod(SKF + 1), color = "UYG+SKF"))
+
+data %>% filter(!is.na(URE) & !is.na(SRS)) %>%
+  ggplot(aes(x = date)) + 
+  geom_line(aes(y = 0.5 * cumprod(URE + 1) + 0.5 * cumprod(SRS + 1), color = "URE+SRS"))
+
+data %>% filter(!is.na(UWM) & !is.na(TWM)) %>%
+  ggplot(aes(x = date)) + 
+  geom_line(aes(y = 0.5 * cumprod(UWM + 1) + 0.5 * cumprod(TWM + 1), color = "UWM+TWM"))
+
+
+```
 
 
 # 4. The main lesson. What if anything have you learned from this exercise?
+
+Buy the regular ETF, short the levered ETF. And beware of tracking errors that build up over time. 
