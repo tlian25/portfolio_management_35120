@@ -1,0 +1,88 @@
+---
+title: "Homework 8"
+author: "Tony Lian"
+output: html_document
+---
+  
+  
+```{r setup, include=FALSE}
+options(scipen = 10)
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+library(tidyverse)
+library(kableExtra)
+library(lubridate)
+library(gridExtra)
+library(zoo)
+
+ff = read.table("data/ff_factors_192607_201912.txt", skip = 1, header = FALSE)
+names(ff) = c("date", "mkt", "smb", "hml", "rf")
+
+for (c in c("mkt", "smb", "hml", "rf")) {
+  ff[c] = ff[c] / 100
+}
+
+ffhold = read.table("data/fund_holding.txt", header = FALSE)
+names(fhold) = c("date", "weight")
+
+
+```
+
+# 1. Performance Evaluation and Market Timing.
+Consider the fund whose market weights are contained in fund holding.txt.
+
+## (a) What are the fund’s unconditional alpha and beta estimates?
+
+```{r}
+
+fhold = fhold %>% merge(ff, on = 'date')
+
+# Returns based on weight of holdings
+fhold$ret = fhold$weight * (fhold$mkt + fhold$rf) + (1 - fhold$weight) * fhold$rf
+
+# Excess returns
+fhold$exret = fhold$ret - fhold$rf
+
+
+# Unconditional Alpha/Beta
+reg = lm("exret ~ mkt", data = fhold)
+summary(reg)
+
+
+```
+
+
+## (b) What are the fund’s conditional alpha and beta estimates?
+
+See below.
+
+## (c) Does the fund manager have the ability to time the market, based on
+
+### i. the Treynor-Mazuy approach?
+
+```{r}
+
+fhold$treymaz = fhold$mkt^2
+reg_tm = lm(exret ~ mkt + treymaz, data = fhold)
+summary(reg_tm)
+
+
+
+```
+
+
+### ii. the Henriksson-Merton approach?
+
+```{r}
+
+fhold$henmert = fhold$mkt * (fhold$mkt > 0)
+reg_hm = lm(exret ~ mkt + henmert, data = fhold)
+summary(reg_hm)
+
+
+```
+
+
+## (d) What if anything have you learnt from this exercise?
+
+
