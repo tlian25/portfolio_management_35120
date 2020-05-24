@@ -14,6 +14,7 @@ library(kableExtra)
 library(lubridate)
 library(gridExtra)
 library(zoo)
+library(R.matlab)
 
 ff = read.table("data/ff_factors_192607_201912.txt", skip = 1, header = FALSE)
 names(ff) = c("date", "mkt", "smb", "hml", "rf")
@@ -29,6 +30,7 @@ names(fhold) = c("date", "weight")
 ```
 
 # 1. Performance Evaluation and Market Timing.
+
 Consider the fund whose market weights are contained in fund holding.txt.
 
 ## (a) What are the fund’s unconditional alpha and beta estimates?
@@ -66,10 +68,8 @@ fhold$treymaz = fhold$mkt^2
 reg_tm = lm(exret ~ mkt + treymaz, data = fhold)
 summary(reg_tm)
 
-
-
 ```
-
+We see that $\gamma > 0$ with a highly significant t-value, which is an indicator that the fund has market timing ability
 
 ### ii. the Henriksson-Merton approach?
 
@@ -79,10 +79,178 @@ fhold$henmert = fhold$mkt * (fhold$mkt > 0)
 reg_hm = lm(exret ~ mkt + henmert, data = fhold)
 summary(reg_hm)
 
-
 ```
+
+We see that $\gamma > 0$ with a significant t-value, which is evidence that the fund has market timing ability. The Henriksson and Merton approach is less significant than the Treynor Mazuy approach.
+
 
 
 ## (d) What if anything have you learnt from this exercise?
 
+
+# 2. Estimating the Performance-Flow Relation.
+
+```{r}
+
+rets = readMat("data/rets_hwk8.mat")
+rets = as.data.frame(rets$rets)
+rets = rets[, 2:ncol(rets)]
+yrs = rets[1,]
+yr.names = paste0('y', yrs)
+names(rets) = yr.names
+rets = rets[2:nrow(rets),]
+for (var in names(rets)) rets[var][rets[var] == -99] = NA
+
+flows = readMat("data/flows_hwk8.mat")
+flows = as.data.frame(flows$flows)
+flows = flows[,2:ncol(flows)]
+names(flows) = paste0('y', flows[1,])
+flows = flows[2:nrow(flows),]
+for (var in names(flows)) flows[var][flows[var] == -99] = NA
+
+```
+
+Consider all equity mutual funds between 1992 and 2002.
+
+## (a) Examine the relation between fund returns in 2001 and fund flows in 2002.
+
+### i. Sort funds into 10 decile portfolios according to their returns in 2001. For each decile, compute the average 2001 return, as well as the average 2002 net flow into the funds in that decile. Plot the average net flow across the ten deciles. Do you observe a convex pattern?
+
+
+```{r}
+
+nyears = length(yr.names)
+n = 10
+dec.names = paste0('d', 1:n)
+
+# Empty template data frame
+m = matrix(NA, n, nyears-1, dimnames = list(dec.names, yr.names[2:length(yr.names)])) %>%
+  as.data.frame()
+
+m2 = matrix(NA, 3, nyears-1, 
+            dimnames = list(c('a', 'b', 'c'), yr.names[2:length(yr.names)]))
+
+avgrets = data.frame(m)
+avgflows = data.frame(m)
+fitvals = data.frame(m)
+
+coefs = data.frame(m2)
+tcoefs = data.frame(m2)
+
+for (i in 2:length(yr.names)) {
+  rf.data = as.data.frame(cbind(rets[,i-1], flows[,i]))
+  names(rf.data) = c('ret', 'flow')
+  rf.data = rf.data[is.finite(rf.data$ret) & is.finite(rf.data$flow) & rf.data$flow > -1,]
+  rf.data$decile = cut(rf.data$ret, 
+                       breaks = quantile(rf.data$ret, probs = seq(0, 1, 0.1), type = 5),
+                       labels = 1:10, include.lowest = TRUE)
+  
+  agg.data = aggregate(rf.data[,1:2], by = list(rf.data$decile), mean)
+  agg.data$decile = as.numeric(as.character(agg.data$Group.1))
+  agg.data$ret2 = agg.data$ret^2
+  
+  rf.mod = lm(flow ~ ret + ret2, data = agg.data)
+  agg.data$fitted = rf.mod$fitted.values
+  
+  coefs[, i-1] = summary(rf.mod)$coefficients[,1]
+  tcoefs[, i-1] = summary(rf.mod)$coefficients[,3]
+  fitvals[, i-1] = rf.mod$fitted.values
+  avgrets[, i-1] = agg.data$ret
+  avgflows[, i-1] = agg.data$flow
+}
+
+# plots
+avgflows$decile = 1:10
+
+avgflows %>% ggplot(aes(x = as.factor(decile), y = y2002)) + 
+  geom_bar(stat = 'identity')
+
+```
+
+
+
+### ii. To look for convexity more formally, regress the average decile flows on the average decile returns and their squares. Do your results support a convex relation between flows and returns?
+
+```{r}
+fitvals$decile = 1:10
+
+fitvals %>% ggplot(aes(x = as.factor(decile), y = y2002)) + 
+  geom_bar(stat = 'identity')
+
+
+
+```
+
+
+
+### iii. In the figure from part (i), plot the fitted flow values using a dotted line.
+
+See above.
+
+### iv. Is there any problem with the standard errors in regression (1)?
+
+To-Do
+
+
+## (b) Examine the performance-flow relation in the whole sample. For each year t between 1992 and 2001, sort funds into decile portfolios according to their returns in year t, compute the deciles’ average returns in year t as well as their average net flows in year t + 1, and run regression (1). This process produces a time series of regression estimates, with three estimates for each of the 10 years.
+
+```{r}
+
+
+```
+
+
+### i. Summarize the evidence using the Fama-MacBeth approach. The Fama-MacBeth estimate of a given coefficient is the average of the coefficient’s estimates across all 10 years and the standard error is the standard deviation of those estimates divided by the square root of 10. What are the Fama-MacBeth estimates of a, b, and c? Is the performance-flow relation significantly positive? Is the convexity pattern statistically significant?
+
+```{r}
+
+fm.mean = rowMeans(coefs)
+fm.tstat = apply(coefs, 1, function(x) sqrt(length(x)) * mean(x)/sd(x))
+
+fama.macbeth = as.data.frame(rbind(fm.mean, fm.tstat))
+
+print(fama.macbeth)
+
+```
+
+
+### ii. Plot the average performance-flow relation in this sample. To do that, average the average decile flows across the 10 years, and plot these average flows across the 10 deciles. Do you see a convex pattern?
+
+```{r}
+
+ggplot() + 
+  geom_bar(aes(x = 1:n, y = rowMeans(avgrets)), stat = 'identity')
+
+```
+
+
+
+## (c) Consider two investments, A and B, both of which last one year. A is safe; it will bring 1% annual return for sure. B is risky, it will bring either -25% with probability 0.6 or +25% with probability 0.4. 
+
+### i. Which project, A or B, would you choose if investing your own money?
+
+I would choose investment A. It has higher expected return.
+
+```{r}
+mean = .6*-25+ .4*25
+var = .6 * (-25 - mean)^2 + .4 * (25 -mean)^2
+
+sr = mean / sqrt(var)
+```
+
+
+### ii. Now suppose you manage a $100 million mutual fund and you care only about your expected compensation, which is 1% of assets under management at the end of the year. Your fund allows inflows and outflows only at the end of the year. At the beginning of the year, you are deciding between A and B. Which of the two investments will you choose?
+
+I would choose B. Because my payout now has convexity attached to it, I am incentivized to maximize my variance. 
+
+
+### iii. Is your choice between A and B the same in parts (i) and (ii)? Explain.
+
+No. 
+
+
+
+## (d) What if anything have you learnt from this exercise?
+
+Fund managers have an incentive to maximize variance as well as returns due to the convex nature of their payout structure.
 
