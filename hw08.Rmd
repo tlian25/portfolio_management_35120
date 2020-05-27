@@ -23,7 +23,7 @@ for (c in c("mkt", "smb", "hml", "rf")) {
   ff[c] = ff[c] / 100
 }
 
-ffhold = read.table("data/fund_holding.txt", header = FALSE)
+fhold = read.table("data/fund_holding.txt", header = FALSE)
 names(fhold) = c("date", "weight")
 
 
