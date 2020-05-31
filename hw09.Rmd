@@ -1,0 +1,267 @@
+---
+title: "Homework 9"
+author: "Tony Lian"
+output: html_document
+---
+  
+  
+```{r setup, include=FALSE}
+options(scipen = 10)
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+library(tidyverse)
+library(kableExtra)
+library(lubridate)
+library(gridExtra)
+library(zoo)
+library(R.matlab)
+
+spx = read.csv("data/sp500_daily.csv")
+names(spx) = c("date", "retd", "retx", 'level')
+spx$ret = spx$retd
+
+spx$date = as.Date(as.character(spx$date), "%Y%m%d")
+spx$year = as.numeric(format(spx$date, '%Y'))
+spx$month = as.numeric(format(spx$date, '%m'))
+
+spx$last_day_of_month = FALSE
+spx$first_day_of_year = FALSE
+spx$last_day_of_month[nrow(spx)] = TRUE
+spx$first_day_of_year[1] = TRUE
+
+for (i in 2:nrow(spx)) {
+  if (spx$month[i] != spx$month[i-1])
+    spx$last_day_of_month[i-1] = TRUE
+  if (spx$year[i] != spx$year[i-1])
+    spx$first_day_of_year[i] = TRUE
+}
+
+
+
+```
+
+#1. Suppose you started your hedge fund on March 1, 1994.
+
+```{r}
+# Function to calculate BS Call value
+
+black_scholes_call = function(S, K, sigma, Tm, rf) {
+  # Black scholes call value
+  d1 = (log(S/K) + (rf + (sigma^2)/2)*Tm) / (sigma * sqrt(Tm))
+  d2 = d1 - sigma * sqrt(Tm)
+  call = S * pnorm(d1) - K * exp(-Tm * rf) * pnorm(d2)
+  return(call)
+}
+
+
+
+# Function to calculate BS Put value
+black_scholes_put = function(S, K, sigma, Tm, rf) {
+  # Put call parity
+  call = black_scholes_call(S, K, sigma, Tm, rf)
+  put = call + K * exp(-Tm * rf) - S
+  return(put)
+}
+```
+
+## (a) On what day did you (Riteput) go out of business? Why?
+
+```{r}
+
+# Fund inception
+capital = 50
+moneyness = 0.85
+target_ret = 0.04
+rf = 0.001
+
+fund = spx[spx$date >= '1994-03-01',]
+
+sigma = sd(spx$ret)
+
+S = fund$level[1]
+K = S * moneyness
+Tm = 60
+
+bs_put = black_scholes_put(S, K, sigma, Tm, rf)
+N = target_ret * capital / bs_put
+
+# Subsequent days
+capitals_d = capital
+capitals_m = capital
+compens_m = 0
+sp_m = S
+ret_m = NULL
+ret_sp_m = NULL
+currdate = fund$date[1]
+idate = 1
+
+while (capital > 0 & idate < nrow(fund)) {
+  idate = idate + 1
+  currdate = fund$date[idate]
+  # Collect RF rate
+  capital = capital * (1 + rf)
+
+  # Rolling puts
+  if (fund$last_day_of_month[idate]) {
+    # Buy back one-month option to close out
+    Tm = 30
+    S = fund$level[idate]
+    bs_put = black_scholes_put(S, K, sigma, Tm, rf)
+    cost = N * bs_put
+    capital = capital - cost
+    
+    # Write new options
+    K = S * moneyness 
+    Tm = 60
+    
+    bs_put = black_scholes_put(S, K, sigma, Tm, rf)
+    N = target_ret * capital / bs_put
+    if (capital > 0) {
+      # Compute monthly returns, compensation
+      old_cap = capitals_m[length(capitals_m)]
+      new_cap = capital
+      ret = (new_cap - old_cap) / old_cap
+      
+      # 2 and 20 compensation
+      compens = (0.02 / 12 + 0.2 * max(ret - 21 * rf, 0)) * old_cap
+      ret_m = c(ret_m, ret)
+      compens_m = c(compens_m, compens)
+      capital = capital - compens
+      
+      # Track monthly capital
+      capitals_m = c(capitals_m, capital)
+      
+      # Track SP500 return
+      old_sp = sp_m[length(sp_m)]
+      new_sp = S
+      ret = (new_sp - old_sp) / old_sp
+      ret_sp_m = c(ret_sp_m, ret)
+      sp_m = c(sp_m, S)
+      
+    }
+  }
+  # Track daily capital
+  capitals_d = c(capitals_d, capital)
+}
+
+
+pos = sum(ret_m > 0) / sum(ret_m > -Inf)
+
+sr_riteput = mean(ret_m - 21 * rf) / sd(ret_m)
+
+sr_sp = mean(ret_sp_m - 21 * rf) / sd(ret_sp_m)
+
+tot_comp = sum(compens_m)
+
+last_date = currdate
+alive = fund$date[fund$date <= last_date]
+
+
+print(last_date)
+```
+
+
+## (b) Plot the daily evolution of Riteput’s capital. What is the fraction of months in which Riteput made money (had a positive return) before its last month?
+
+
+```{r}
+
+df = data.frame(date = alive, capital = capitals_d)
+
+
+df %>% ggplot(aes(x = date, y = capital)) + 
+  geom_line()
+
+rets = capitals_m[1:(length(capitals_m) -1)] %>% diff()
+
+print(sum(rets >0) / length(rets))
+
+```
+
+
+
+## (c) Judging by its Sharpe ratio since inception, did Riteput look like an attractive investment in the last month prior to its demise? How does its Sharpe ratio compare to the S&P’s (ex-dividend) Sharpe ratio over the same period?
+
+```{r}
+
+
+sr_riteput = mean(ret_m[1:(length(ret_m)-1)] - 21 * rf) / 
+  sd(ret_m[1:(length(ret_m)-1)])
+
+print(sr_riteput)
+
+print(sr_sp)
+
+
+```
+Yes, Riteput has a higher sharpe ratio than the index during this time.
+
+
+
+## (d) Why did the Sharpe ratio fail to predict Riteput’s approaching doom?
+
+Sharpe ratio assumes a constant volatility and unchanging distribution. Clearly, the distribution has changed. 
+
+
+## (e) Plot the evolution of your monthly compensation prior to Riteput’s demise. Exactly how much did you earn in July 1998? What is your cumulative compensation? Does this compensation reflect your superb investment skills?
+
+
+```{r}
+compdf = data.frame(month = 1:length(compens_m), comps = compens_m)
+
+
+compdf %>% ggplot(aes(x = month, y = comps)) + 
+  geom_line()
+
+
+```
+
+
+
+
+
+
+## (f) Why do you think I chose March 1994 as the starting date?
+
+```{r}
+
+spx %>% ggplot(aes(x = date, y = level)) + 
+  geom_line()
+
+```
+
+Looks like the start of the dotcom boom. Massive rally. 
+
+
+# 2. Answer all numerical questions in part 1 (without plots) when options are 15% and 10% out of the money (instead of 20%). Does going less deep out of the money make Riteput’s strategy appear more or less attractive before the trouble hits? Does it make you richer? Why?
+
+It looks less attractive. There is less decay on those options when you have to close them out with 30 days to go. 
+
+
+
+
+
+# 3. Suppose you can start your hedge fund on
+## (a) January 2, 1980
+## (b) January 3, 2000
+## In both cases, produce the same plots as in part 1 and explain what caused the fund to collapse. (Note: We are back to options that are 20% out of the money.)
+
+
+
+
+
+#4. What techniques can investors use to detect Riteput’s strategy?
+
+You could always read the prospectus and look at fund holdings. 
+
+
+# 5. Riteput is to Powerball as the duration of human pregnancy is to ...?
+## (a) the time students take to complete a one-hour exam
+## (b) the time it takes to fly from Chicago to New York
+## Pick the better match and briefly explain.
+
+A. In terms of the skewness of distributions, we know that A is negatively skewed. The max time is one-hour, but students could finish earlier. Likewise, Riteput is capped on returns as it can only collect the premium on the puts its sells, thus displays negative convexity. 
+
+
+
+# 6. What if anything have you learnt from this exercise?
