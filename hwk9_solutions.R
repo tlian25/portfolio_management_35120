@@ -8,7 +8,7 @@ target_ret = 0.04
 tb_ret = 0.0001
 #data = read.table('sp500_daily.txt', comment.char = '%')
 data = read.csv("data/sp500_daily.csv")
-names(data) = c('date', 'sp_ret', 'sp_prices')
+names(data) = c('date', 'sp_ret', 'sp_retd','sp_prices')
 data$date = as.Date(as.character(data$date), '%Y%m%d')
 sigma = sd(data$sp_ret)
 last_date = data$date[nrow(data)]
@@ -48,9 +48,11 @@ ret_sp_m = NULL
 thedate = data$date[idate]
 while(capital>0 & thedate<=last_date) {    
     idate = idate + 1
+    print(idate)
     if(idate > nrow(data)) break
     thedate = data$date[idate]   
-    S = data$sp_prices[idate]     
+    S = data$sp_prices[idate]
+    print(S)
     capital = capital*(1+tb_ret)
     if(data$last_day_of_month[idate]) { 
         # Buy back your one-month-old options to close out your position

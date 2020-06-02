@@ -68,96 +68,120 @@ black_scholes_put = function(S, K, sigma, Tm, rf) {
 
 ```{r}
 
+
+riteput = function(capital, moneyness, target_ret, rf, start_date) {
+
+  fund = spx[spx$date >= start_date,]
+  
+  sigma = sd(spx$ret)
+  
+  S = fund$level[1]
+  K = S * moneyness
+  Tm = 60
+  
+  bs_put = black_scholes_put(S, K, sigma, Tm, rf)
+  N = target_ret * capital / bs_put
+  
+  # Subsequent days
+  capitals_d = capital
+  capitals_m = capital
+  compens_m = 0
+  sp_m = S
+  ret_m = NULL
+  ret_sp_m = NULL
+  currdate = fund$date[1]
+  idate = 1
+  
+  while (capital > 0 & idate < nrow(fund)) {
+    idate = idate + 1
+    currdate = fund$date[idate]
+    # Collect RF rate
+    capital = capital * (1 + rf)
+  
+    # Rolling puts
+    if (fund$last_day_of_month[idate]) {
+      # Buy back one-month option to close out
+      Tm = 30
+      S = fund$level[idate]
+      bs_put = black_scholes_put(S, K, sigma, Tm, rf)
+      cost = N * bs_put
+      capital = capital - cost
+      
+      # Write new options
+      K = S * moneyness 
+      Tm = 60
+      
+      bs_put = black_scholes_put(S, K, sigma, Tm, rf)
+      N = target_ret * capital / bs_put
+      if (capital > 0) {
+        # Compute monthly returns, compensation
+        old_cap = capitals_m[length(capitals_m)]
+        new_cap = capital
+        ret = (new_cap - old_cap) / old_cap
+        
+        # 2 and 20 compensation
+        compens = (0.02 / 12 + 0.2 * max(ret - 21 * rf, 0)) * old_cap
+        ret_m = c(ret_m, ret)
+        compens_m = c(compens_m, compens)
+        capital = capital - compens
+        
+        # Track monthly capital
+        capitals_m = c(capitals_m, capital)
+        
+        # Track SP500 return
+        old_sp = sp_m[length(sp_m)]
+        new_sp = S
+        ret = (new_sp - old_sp) / old_sp
+        ret_sp_m = c(ret_sp_m, ret)
+        sp_m = c(sp_m, S)
+        
+      }
+    }
+    # Track daily capital
+    capitals_d = c(capitals_d, capital)
+  }
+  
+  
+  pos = sum(ret_m > 0) / sum(ret_m > -Inf)
+  
+  sr_riteput = mean(ret_m - 21 * rf) / sd(ret_m)
+  
+  sr_sp = mean(ret_sp_m - 21 * rf) / sd(ret_sp_m)
+  
+  tot_comp = sum(compens_m)
+  
+  last_date = currdate
+  alive = fund$date[fund$date <= last_date]
+  
+  return(list(last_date = last_date,
+              alive = alive,
+              pos = pos,
+              sr_riteput = sr_riteput,
+              sr_sp = sr_sp,
+              capitals_d = capitals_d,
+              tot_comp = tot_comp,
+              compens_m = compens_m,
+              sp_m = sp_m,
+              capitals_d = capitals_d,
+              capitals_m = capitals_m))
+
+}
+```
+
+```{r}
 # Fund inception
 capital = 50
-moneyness = 0.85
 target_ret = 0.04
 rf = 0.001
-
-fund = spx[spx$date >= '1994-03-01',]
-
-sigma = sd(spx$ret)
-
-S = fund$level[1]
-K = S * moneyness
-Tm = 60
-
-bs_put = black_scholes_put(S, K, sigma, Tm, rf)
-N = target_ret * capital / bs_put
-
-# Subsequent days
-capitals_d = capital
-capitals_m = capital
-compens_m = 0
-sp_m = S
-ret_m = NULL
-ret_sp_m = NULL
-currdate = fund$date[1]
-idate = 1
-
-while (capital > 0 & idate < nrow(fund)) {
-  idate = idate + 1
-  currdate = fund$date[idate]
-  # Collect RF rate
-  capital = capital * (1 + rf)
-
-  # Rolling puts
-  if (fund$last_day_of_month[idate]) {
-    # Buy back one-month option to close out
-    Tm = 30
-    S = fund$level[idate]
-    bs_put = black_scholes_put(S, K, sigma, Tm, rf)
-    cost = N * bs_put
-    capital = capital - cost
-    
-    # Write new options
-    K = S * moneyness 
-    Tm = 60
-    
-    bs_put = black_scholes_put(S, K, sigma, Tm, rf)
-    N = target_ret * capital / bs_put
-    if (capital > 0) {
-      # Compute monthly returns, compensation
-      old_cap = capitals_m[length(capitals_m)]
-      new_cap = capital
-      ret = (new_cap - old_cap) / old_cap
-      
-      # 2 and 20 compensation
-      compens = (0.02 / 12 + 0.2 * max(ret - 21 * rf, 0)) * old_cap
-      ret_m = c(ret_m, ret)
-      compens_m = c(compens_m, compens)
-      capital = capital - compens
-      
-      # Track monthly capital
-      capitals_m = c(capitals_m, capital)
-      
-      # Track SP500 return
-      old_sp = sp_m[length(sp_m)]
-      new_sp = S
-      ret = (new_sp - old_sp) / old_sp
-      ret_sp_m = c(ret_sp_m, ret)
-      sp_m = c(sp_m, S)
-      
-    }
-  }
-  # Track daily capital
-  capitals_d = c(capitals_d, capital)
-}
+start_date = '1994-03-01'
 
 
-pos = sum(ret_m > 0) / sum(ret_m > -Inf)
+# different moneyness
+r20 = riteput(capital, moneyness = 0.8, target_ret, rf, start_date)
+r15 = riteput(capital, moneyness = 0.85, target_ret, rf, start_date)
+r10 = riteput(capital, moneyness = 0.9, target_ret, rf, start_date)
 
-sr_riteput = mean(ret_m - 21 * rf) / sd(ret_m)
-
-sr_sp = mean(ret_sp_m - 21 * rf) / sd(ret_sp_m)
-
-tot_comp = sum(compens_m)
-
-last_date = currdate
-alive = fund$date[fund$date <= last_date]
-
-
-print(last_date)
+print(r20$last_date)
 ```
 
 
@@ -166,13 +190,14 @@ print(last_date)
 
 ```{r}
 
-df = data.frame(date = alive, capital = capitals_d)
+df = data.frame(date = r20$alive, capital = r20$capitals_d)
 
 
 df %>% ggplot(aes(x = date, y = capital)) + 
-  geom_line()
+  geom_line() +
+  ggtitle("Riteput Capital")
 
-rets = capitals_m[1:(length(capitals_m) -1)] %>% diff()
+rets = r20$capitals_m[1:(length(r20$capitals_m) -1)] %>% diff()
 
 print(sum(rets >0) / length(rets))
 
@@ -184,13 +209,9 @@ print(sum(rets >0) / length(rets))
 
 ```{r}
 
+print(r20$sr_riteput)
 
-sr_riteput = mean(ret_m[1:(length(ret_m)-1)] - 21 * rf) / 
-  sd(ret_m[1:(length(ret_m)-1)])
-
-print(sr_riteput)
-
-print(sr_sp)
+print(r20$sr_sp)
 
 
 ```
@@ -211,7 +232,8 @@ compdf = data.frame(month = 1:length(compens_m), comps = compens_m)
 
 
 compdf %>% ggplot(aes(x = month, y = comps)) + 
-  geom_line()
+  geom_line() + 
+  ggtitle("Fund Manager Compensation")
 
 
 ```
@@ -226,7 +248,10 @@ compdf %>% ggplot(aes(x = month, y = comps)) +
 ```{r}
 
 spx %>% ggplot(aes(x = date, y = level)) + 
-  geom_line()
+  geom_line() + 
+  geom_line(data = spx[(spx$date > '1994-03-01' & spx$date< '1998-08-31'),], 
+            aes(x = date, y = level), color = "red")+
+  ggtitle("SP500")
 
 ```
 
@@ -237,6 +262,33 @@ Looks like the start of the dotcom boom. Massive rally.
 
 It looks less attractive. There is less decay on those options when you have to close them out with 30 days to go. 
 
+```{r}
+# capital
+df = data.frame(date = r20$alive, capital20 = r20$capitals_d,
+                capital15 = r15$capitals_d, capital10 = r10$capitals_d)
+
+
+df %>% ggplot(aes(x = date)) + 
+  geom_line(aes(y = capital20, color = "20%")) + 
+  geom_line(aes(y = capital15, color = "15%")) + 
+  geom_line(aes(y = capital10, color = "10%")) + 
+  ggtitle("Riteput Capital")
+
+
+# compensation
+
+compdf = data.frame(month = 1:length(compens_m), comps20 = r20$compens_m,
+                    comps15 = r15$compens_m, comps10 = r10$compens_m)
+
+
+compdf %>% ggplot(aes(x = month)) + 
+  geom_line(aes(y = comps20, color = '20%')) +
+  geom_line(aes(y = comps15, color = '15%')) + 
+  geom_line(aes(y = comps10, color = '10%')) + 
+  ggtitle("Fund Manager Compensation")
+
+```
+
 
 
 
@@ -246,6 +298,28 @@ It looks less attractive. There is less decay on those options when you have to 
 ## (b) January 3, 2000
 ## In both cases, produce the same plots as in part 1 and explain what caused the fund to collapse. (Note: We are back to options that are 20% out of the money.)
 
+
+```{r}
+
+r1980 = riteput(capital, 0.80, target_ret, rf, '1980-01-02')
+r2000 = riteput(capital, 0.80, target_ret, rf, '2000-01-03')
+
+
+df = data.frame(date = r1980$alive, capital = r1980$capitals_d)
+
+df %>% ggplot(aes(x = date, y = capital)) + 
+  geom_line() +
+  ggtitle("Riteput Capital (Inception 1980")
+
+
+df = data.frame(date = r2000$alive, capital = r2000$capitals_d)
+
+
+df %>% ggplot(aes(x = date, y = capital)) + 
+  geom_line() +
+  ggtitle("Riteput Capital (Inception 2000)")
+
+```
 
 
 
